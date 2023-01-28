@@ -1,4 +1,3 @@
-import { Fee, MsgExecuteContract } from '@terra-money/terra.js';
 import {
   CreateTxFailed,
   Timeout,
@@ -8,7 +7,9 @@ import {
   useConnectedWallet,
   UserDenied,
   useLCDClient,
+  useWallet,
 } from '@terra-money/wallet-provider';
+import { LCDClient, LCDClientConfig, Coins, Fee, MsgExecuteContract } from "@terra-money/feather.js"
 import React, { useCallback, useState } from 'react';
 import { MerkleTree } from 'merkletreejs';
 import pkg from 'js-sha3';
@@ -68,14 +69,22 @@ interface CommitmentTimestampResponse {
   timestamp: number
 }
 
-const contractAddrs = {'registry': 'terra19rq0rd6f30un2s7lesgsny0e6thhjft7yrnw8p', 
-                       'resolver': 'terra1q9q9dqs63a2pyf9a2pegn70pgqfprnlztqlsll',
-                       'registrar': 'terra1mycyhz3qmjzxjpy8tlppph0emyhvrsg4hnhz8k',
-                       'controller': 'terra1nsgzma8e0kju7wt7fkfypl37c6sdsud6agwlqp'}
+interface MintInfoResponse {
+  enable_public_mint: boolean;
+  start_time: number;
+  end_time: number;
+  phase: number;
+  root: string;
+}
+
+const contractAddrs = {'registry': 'terra18nsn4nm32lf3hsky6l582xg5g92kqt829ckfsx', 
+                       'resolver': 'terra178zzd6lyp7ucykjjep3zmlv8kun8xn7t08fxcr',
+                       'registrar': 'terra1w5a62a4jgqq8a08hsmphn6ad7caw5mqamh8hq0',
+                       'controller': 'terra1agx8ruthzfe6vpw3tu43kc32396dge67rc5tap'}
 
 const secret = 'luncid';
-const GasLimit = 2000000;
-const GasPrice = '12335707uluna';
+
+const chainID = 'columbus-5';
 
 export function TNS() {
   const [txResult, setTxResult] = useState<TxResult | null>(null);
@@ -105,12 +114,23 @@ export function TNS() {
   const [allNFTs, setAllNFTs] = useState<any[]>([]);
   const [resolvedAddress, setResolvedAddress] = useState<string>('');
   const [terraAddress, setTerraAddress] = useState<string>('');
+  const [toAddress, setToAddress] = useState<string>('');
 
   const connectedWallet = useConnectedWallet();
-  const lcd = useLCDClient();
+  //const { status, network, wallets } = useWallet();
+  //console.log(JSON.stringify({status, network, wallets}));
   
+  const lcd = useLCDClient();
+  // new LCDClient({
+  //   lcd: "https://columbus-lcd.terra.dev/",
+  //   chainID: "columbus-5",
+  //   gasPrices: gasPricesCoins,
+  //   gasAdjustment: "1.5",
+  //   gas: 10000000,
+  // }) 
+
   const defaultConfig = {
-    "owner": connectedWallet?.walletAddress,
+    "owner": connectedWallet?.addresses[chainID],
     "registrar_address": contractAddrs['registrar'],
     "max_commitment_age": 600,
     "min_commitment_age": 30,
@@ -130,7 +150,46 @@ export function TNS() {
   
   let proofString = '';
 
-  const setConfig = useCallback(() => {
+  const getTxFee = async (msg: any, txAmount?: number | null) => {
+    try {
+      let taxAmountCoins = new Coins({ uluna : 0 });
+
+      const gasPrices =  await fetch('https://columbus-fcd.terra.dev/v1/txs/gas_prices');
+      const gasPricesJson = await gasPrices.json();
+      const gasPricesCoins = new Coins(gasPricesJson); 
+
+      if (txAmount != null && txAmount > 0) {
+        const taxRateRaw = await fetch("https://rebel1.grouptwo.org/terra/treasury/v1beta1/tax_rate");
+        const taxRate = await taxRateRaw.json();
+        const taxCapRaw = await fetch("https://rebel1.grouptwo.org/terra/treasury/v1beta1/tax_caps/uluna");
+        const taxCap = await taxCapRaw.json();
+      
+        const taxAmount = Math.min(Math.ceil(txAmount * parseFloat(taxRate.tax_rate)), parseInt(taxCap.tax_cap));
+        taxAmountCoins = new Coins({ uluna : taxAmount });
+      }
+
+      const accountInfo: any = await lcd.auth.accountInfo(connectedWallet?.addresses[chainID] as string);
+      
+      var txFee: Fee = await lcd.tx.estimateFee(
+        [{ sequenceNumber: accountInfo.sequence }],
+        { 
+          msgs: [msg], 
+          gasPrices: gasPricesCoins, 
+          gasAdjustment: 3, 
+          feeDenoms: ["uluna"],
+          chainID
+        }
+      );
+      const amount = txFee.amount.add(taxAmountCoins);
+      return new Fee(txFee.gas_limit, amount);
+    } catch (error) {
+      console.log(error);
+      console.log('Tx simulate execute fail, you would better NOT broadcast it to the chain');      
+      return new Fee(2000000, '25000000uluna');
+    }
+  }
+
+  const setConfig = useCallback(async () => {
     if (!connectedWallet) {
       return;
     }
@@ -143,17 +202,19 @@ export function TNS() {
     setTxError(null);
     
     const conctractMsg = new MsgExecuteContract(
-      connectedWallet.walletAddress, 
+      connectedWallet?.addresses[chainID], 
       contractAddrs['controller'],
       {
         ...executeMsg
       });
-
+    
+    const txFee = await getTxFee(conctractMsg);
     connectedWallet.post({
-        fee: new Fee(GasLimit, GasPrice),
+        fee: txFee,
         msgs: [
           conctractMsg
         ],
+        chainID
       })
       .then((nextTxResult: TxResult) => {
         console.log(nextTxResult);
@@ -179,7 +240,7 @@ export function TNS() {
       });
   }, [connectedWallet]);
   
-  const setEnablePublicMint = useCallback(() => {
+  const setEnablePublicMint = useCallback(async () => {
     if (!connectedWallet) {
       return;
     }
@@ -191,17 +252,19 @@ export function TNS() {
     setTxError(null);
     
     const conctractMsg = new MsgExecuteContract(
-      connectedWallet.walletAddress, 
+      connectedWallet?.addresses[chainID], 
       contractAddrs['controller'],
       {
         ...executeMsg
-      });
-
+      }
+    );
+    const txFee = await getTxFee(conctractMsg);
     connectedWallet.post({
-        fee: new Fee(GasLimit, GasPrice),
+        fee: txFee,
         msgs: [
           conctractMsg
         ],
+        chainID
       })
       .then((nextTxResult: TxResult) => {
         console.log(nextTxResult);
@@ -225,9 +288,9 @@ export function TNS() {
           );
         }
       });
-  }, [connectedWallet]);
+  }, [connectedWallet, isEnablePublicMint]);
   
-  const withdrawFund = useCallback(() => {
+  const withdrawFund = useCallback(async () => {
     if (!connectedWallet) {
       return;
     }
@@ -243,17 +306,19 @@ export function TNS() {
     setTxError(null);
     
     const conctractMsg = new MsgExecuteContract(
-      connectedWallet.walletAddress, 
+      connectedWallet?.addresses[chainID], 
       contractAddrs['controller'],
       {
         ...executeMsg
       });
-
+    
+    const txFee = await getTxFee(conctractMsg);
     connectedWallet.post({
-        fee: new Fee(GasLimit, GasPrice),
+        fee: txFee,
         msgs: [
           conctractMsg
         ],
+        chainID
       })
       .then((nextTxResult: TxResult) => {
         console.log(nextTxResult);
@@ -283,6 +348,7 @@ export function TNS() {
     if (!connectedWallet) {
       return;
     }
+
     if (didName == '' || didName == null) {
       alert("Please input name");
       return;
@@ -297,17 +363,18 @@ export function TNS() {
     setTxError(null);
     
     const conctractMsg = new MsgExecuteContract(
-      connectedWallet.walletAddress, 
+      connectedWallet?.addresses[chainID], 
       contractAddrs['resolver'],
       {
         ...executeMsg
       });
-
+    const txFee = await getTxFee(conctractMsg);
     connectedWallet.post({
-        fee: new Fee(GasLimit, GasPrice),
+        fee: txFee,
         msgs: [
           conctractMsg
         ],
+        chainID
       })
       .then((nextTxResult: TxResult) => {
         console.log(nextTxResult);
@@ -333,7 +400,63 @@ export function TNS() {
       });
   }, [connectedWallet, terraAddress, didName]);
 
-  const setEnableRegistration = useCallback(() => {
+  const transferNFT = useCallback(async () => {
+    if (!connectedWallet) {
+      return;
+    }
+
+    if (didName == '' || didName == null) {
+      alert("Please input name");
+      return;
+    }
+    
+    const tokenId = await getTokenId(didName);
+
+    const executeMsg = {transfer_nft: {recipient: toAddress, token_id: tokenId}};
+    //console.log(executeMsg);
+
+    setTxResult(null);
+    setTxError(null);
+    
+    const conctractMsg = new MsgExecuteContract(
+      connectedWallet?.addresses[chainID], 
+      contractAddrs['registrar'],
+      {
+        ...executeMsg
+      });
+    const txFee = await getTxFee(conctractMsg);
+    connectedWallet.post({
+        fee: txFee,
+        msgs: [
+          conctractMsg
+        ],
+        chainID
+      })
+      .then((nextTxResult: TxResult) => {
+        console.log(nextTxResult);
+        setTxResult(nextTxResult);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof UserDenied) {
+          setTxError('User Denied');
+        } else if (error instanceof CreateTxFailed) {
+          setTxError('Create Tx Failed: ' + error.message);
+        } else if (error instanceof TxFailed) {
+          setTxError('Tx Failed: ' + error.message);
+        } else if (error instanceof Timeout) {
+          setTxError('Timeout');
+        } else if (error instanceof TxUnspecifiedError) {
+          setTxError('Unspecified Error: ' + error.message);
+        } else {
+          setTxError(
+            'Unknown Error: ' +
+              (error instanceof Error ? error.message : String(error)),
+          );
+        }
+      });
+  }, [connectedWallet, toAddress, didName]);
+
+  const setEnableRegistration = useCallback(async () => {
     if (!connectedWallet) {
       return;
     }
@@ -345,17 +468,19 @@ export function TNS() {
     setTxError(null);
     
     const conctractMsg = new MsgExecuteContract(
-      connectedWallet.walletAddress, 
+      connectedWallet?.addresses[chainID], 
       contractAddrs['controller'],
       {
         ...executeMsg
       });
 
+    const txFee = await getTxFee(conctractMsg);
     connectedWallet.post({
-        fee: new Fee(GasLimit, GasPrice),
+        fee: txFee,
         msgs: [
           conctractMsg
         ],
+        chainID
       })
       .then((nextTxResult: TxResult) => {
         console.log(nextTxResult);
@@ -381,11 +506,10 @@ export function TNS() {
       });
   }, [connectedWallet]);
 
-  const setRoot = useCallback(() => {
+  const setRoot = useCallback(async () => {
     if (!connectedWallet) {
       return;
     }
-
     const whitelist = (document.getElementById("whitelist")?.textContent as string).split(";");
     const leaves = whitelist.map(x => SHA256(x))
     const tree = new MerkleTree(leaves, SHA256, {sortPairs: true})
@@ -396,23 +520,24 @@ export function TNS() {
         root
       }
     };
-    //console.log(executeMsg);
 
     setTxResult(null);
     setTxError(null);
     
     const conctractMsg = new MsgExecuteContract(
-      connectedWallet.walletAddress, 
+      connectedWallet?.addresses[chainID], 
       contractAddrs['controller'],
       {
         ...executeMsg
       });
-
+    
+    const txFee = await getTxFee(conctractMsg);
     connectedWallet.post({
-        fee: new Fee(GasLimit, GasPrice),
+        fee: txFee,
         msgs: [
           conctractMsg
         ],
+        chainID
       })
       .then((nextTxResult: TxResult) => {
         console.log(nextTxResult);
@@ -438,7 +563,7 @@ export function TNS() {
       });
   }, [connectedWallet]);
   
-  const addController = useCallback(() => {
+  const addController = useCallback(async () => {
     if (!connectedWallet) {
       return;
     }
@@ -453,17 +578,19 @@ export function TNS() {
     setTxError(null);
     
     const conctractMsg = new MsgExecuteContract(
-      connectedWallet.walletAddress, 
+      connectedWallet?.addresses[chainID], 
       contractAddrs['registrar'],
       {
         ...executeMsg
       });
-
+  
+    const txFee = await getTxFee(conctractMsg);
     connectedWallet.post({
-        fee: new Fee(GasLimit, GasPrice),
+        fee: txFee,
         msgs: [
           conctractMsg
         ],
+        chainID
       })
       .then((nextTxResult: TxResult) => {
         console.log(nextTxResult);
@@ -489,7 +616,66 @@ export function TNS() {
       });
   }, [connectedWallet]);
 
-  const setSubnodeOwner = useCallback(async () => {
+  const setSubnodeOwner = useCallback(async (name: string) => {
+    if (!connectedWallet) {
+      return;
+    }
+
+    const tokenId = await getTokenId(name);
+    const tokenIdBuffer = new Uint8Array(hex2ab(tokenId));
+    const nodeBuffer = new Uint8Array(hex2ab('0000000000000000000000000000000000000000000000000000000000000000'));
+    const executeMsg = {
+      set_subnode_owner: {
+        node: [...nodeBuffer],
+        label: [...tokenIdBuffer],
+        owner: contractAddrs['registrar']
+      }
+    };
+    //console.log(executeMsg);
+
+    setTxResult(null);
+    setTxError(null);
+    
+    const conctractMsg = new MsgExecuteContract(
+      connectedWallet?.addresses[chainID], 
+      contractAddrs['registry'],
+      {
+        ...executeMsg
+      });
+  
+    const txFee = await getTxFee(conctractMsg);
+    connectedWallet.post({
+        fee: txFee,
+        msgs: [
+          conctractMsg
+        ],
+        chainID
+      })
+      .then((nextTxResult: TxResult) => {
+        console.log(nextTxResult);
+        setTxResult(nextTxResult);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof UserDenied) {
+          setTxError('User Denied');
+        } else if (error instanceof CreateTxFailed) {
+          setTxError('Create Tx Failed: ' + error.message);
+        } else if (error instanceof TxFailed) {
+          setTxError('Tx Failed: ' + error.message);
+        } else if (error instanceof Timeout) {
+          setTxError('Timeout');
+        } else if (error instanceof TxUnspecifiedError) {
+          setTxError('Unspecified Error: ' + error.message);
+        } else {
+          setTxError(
+            'Unknown Error: ' +
+              (error instanceof Error ? error.message : String(error)),
+          );
+        }
+      });
+  }, [connectedWallet]);
+
+  const setSubnodeOwnerOfLunc = useCallback(async () => {
     if (!connectedWallet) {
       return;
     }
@@ -510,17 +696,19 @@ export function TNS() {
     setTxError(null);
     
     const conctractMsg = new MsgExecuteContract(
-      connectedWallet.walletAddress, 
+      connectedWallet?.addresses[chainID], 
       contractAddrs['registry'],
       {
         ...executeMsg
       });
-
+  
+    const txFee = await getTxFee(conctractMsg);
     connectedWallet.post({
-        fee: new Fee(GasLimit, GasPrice),
+        fee: txFee,
         msgs: [
           conctractMsg
         ],
+        chainID
       })
       .then((nextTxResult: TxResult) => {
         console.log(nextTxResult);
@@ -568,17 +756,19 @@ export function TNS() {
     setTxError(null);
     
     const conctractMsg = new MsgExecuteContract(
-      connectedWallet.walletAddress, 
+      connectedWallet?.addresses[chainID], 
       contractAddrs['controller'],
       {
         ...executeMsg
       });
-
+  
+    const txFee = await getTxFee(conctractMsg);
     connectedWallet.post({
-        fee: new Fee(GasLimit, GasPrice),
+        fee: txFee,
         msgs: [
           conctractMsg
         ],
+        chainID
       })
       .then((nextTxResult: TxResult) => {
         console.log(nextTxResult);
@@ -615,11 +805,11 @@ export function TNS() {
     const executeMsg = {
       register_whitelist: {
         name: didName,
-        owner: connectedWallet?.walletAddress,
+        owner: connectedWallet?.addresses[chainID],
         duration,
         secret,
         resolver: contractAddrs['resolver'],
-        address: connectedWallet?.walletAddress,
+        address: connectedWallet?.addresses[chainID],
         proof
       }
     };
@@ -629,18 +819,20 @@ export function TNS() {
     setTxError(null);
     
     const conctractMsg = new MsgExecuteContract(
-      connectedWallet.walletAddress, 
+      connectedWallet?.addresses[chainID], 
       contractAddrs['controller'],
       {
         ...executeMsg
       },
       {uluna: parseInt(rentPrice.toString())});
 
+    const txFee = await getTxFee(conctractMsg, parseInt(rentPrice.toString()));
     connectedWallet.post({
-        fee: new Fee(GasLimit, GasPrice),
+        fee: txFee,
         msgs: [
           conctractMsg
         ],
+        chainID
       })
       .then((nextTxResult: TxResult) => {
         console.log(nextTxResult);
@@ -673,11 +865,11 @@ export function TNS() {
     const executeMsg = {
       register: {
         name: didName,
-        owner: connectedWallet?.walletAddress,
+        owner: connectedWallet?.addresses[chainID],
         duration,
         secret,
         resolver: contractAddrs['resolver'],
-        address: connectedWallet?.walletAddress,
+        address: connectedWallet?.addresses[chainID],
       }
     };
     //console.log(executeMsg);
@@ -686,18 +878,20 @@ export function TNS() {
     setTxError(null);
     
     const conctractMsg = new MsgExecuteContract(
-      connectedWallet.walletAddress, 
+      connectedWallet?.addresses[chainID], 
       contractAddrs['controller'],
       {
         ...executeMsg
       },
       {uluna: parseInt(rentPrice.toString())});
 
+    const txFee = await getTxFee(conctractMsg, parseInt(rentPrice.toString()));
     connectedWallet.post({
-        fee: new Fee(GasLimit, GasPrice),
+        fee: txFee,
         msgs: [
           conctractMsg
         ],
+        chainID
       })
       .then((nextTxResult: TxResult) => {
         console.log(nextTxResult);
@@ -736,7 +930,7 @@ export function TNS() {
     const whitelist = (document.getElementById("whitelist")?.textContent as string).split(";");
     const leaves = whitelist.map(x => SHA256(x))
     const tree = new MerkleTree(leaves, SHA256, {sortPairs: true})
-    const leaf = SHA256(connectedWallet?.walletAddress.toString() as string);
+    const leaf = SHA256(connectedWallet?.addresses[chainID].toString() as string);
     const proof = tree.getProof(leaf);
     if (proof.length == 0) {
       alert('Your account is NOT in whitelist');
@@ -751,8 +945,13 @@ export function TNS() {
   };
 
   const getConfig = async () => {
-    let result = await lcd.wasm.contractQuery(contractAddrs['controller'], {get_mint_info: {}});
-    setMintInfo(JSON.stringify(result));
+    console.log('getConfig 1', lcd);
+    let result = await lcd.wasm.contractQuery(contractAddrs['controller'], {get_mint_info: {}}) as MintInfoResponse;
+    console.log('getConfig 2', result);
+    const mintInfo = JSON.parse(JSON.stringify(result));
+    mintInfo.start_time = new Date(mintInfo.start_time * 1000).toLocaleString();
+    mintInfo.end_time = new Date(mintInfo.end_time * 1000).toLocaleString();
+    setMintInfo(JSON.stringify(mintInfo));
   }
 
   const getCommitmentInfo = async () => {
@@ -858,7 +1057,7 @@ export function TNS() {
       {
         tokens: 
         {
-          owner: connectedWallet?.walletAddress,
+          owner: connectedWallet?.addresses[chainID],
           start_after,
           limit:10
         }
@@ -898,9 +1097,13 @@ export function TNS() {
     let nodeInfo = await lcd.wasm.contractQuery(contractAddrs['controller'], {get_node_info: {name: didName}}) as NodeInfoResponse;  
     const node = [...new Uint8Array(nodeInfo.node)];
 
-    let result = await lcd.wasm.contractQuery(contractAddrs['resolver'], {get_terra_address: {node}}) as AddressResponse;   
-    setResolvedAddress(result.address);
-    return result.address; 
+    try {
+      let result = await lcd.wasm.contractQuery(contractAddrs['resolver'], {get_terra_address: {node}}) as AddressResponse;   
+      setResolvedAddress(result.address);
+      return result.address; 
+    } catch (error) {
+      setResolvedAddress('NO');
+    }
   }
 
   const getTokenId = async (name:String) => {
@@ -943,9 +1146,9 @@ export function TNS() {
           { 
             get_commitment: {
               name: didName, 
-              owner: connectedWallet?.walletAddress,
+              owner: connectedWallet?.addresses[chainID],
               resolver: contractAddrs['resolver'],
-              address: connectedWallet?.walletAddress,
+              address: connectedWallet?.addresses[chainID],
               secret
             }
           }
@@ -1027,7 +1230,7 @@ export function TNS() {
         <div>
           <textarea id='whitelist' name='whitelist' rows={10} cols={30} defaultValue={whitelistStr}></textarea>
           <button onClick={getRoot}>Get Root</button>
-          <button style={{marginLeft:2}} onClick={setRoot}>Set Root to Contract</button>
+          <button style={{marginLeft:2, color: 'red'}} onClick={setRoot}>Set Root to Contract</button>
           <button style={{marginLeft:2}} onClick={() => getProof(false)}>Get My Proof</button>
           <br/>
           <pre>root: {rootHash}</pre>
@@ -1065,10 +1268,11 @@ export function TNS() {
           <button onClick={addController}>Add Controller</button>
         </div>
       )}
-      <h3 style={{color: 'red'}}>Registry::SetSubNodeOwner(.lunc)</h3>
+      <h3 style={{color: 'red'}}>Registry::SetSubNodeOwner(.lunc/.reverse)</h3>
       {connectedWallet?.availablePost && !txResult && !txError && (
         <div>
-          <button onClick={setSubnodeOwner}>Set SubNode Owner</button>
+          <button onClick={setSubnodeOwnerOfLunc}>Set SubNode Owner of .lunc</button>
+          <button style={{marginLeft:2}} onClick={() => setSubnodeOwner('reverse')}>Set SubNode Owner of .reverse</button>
         </div>
       )}
       <h3 style={{marginTop:5}}>Controller::Get Information</h3>
@@ -1105,15 +1309,15 @@ export function TNS() {
       <h3>Register Lunc DID</h3>
       {connectedWallet?.availablePost && !txResult && !txError && (
         <div>
-          <button style={{marginTop:2}} onClick={checkNameRegisterable}>Check Name Registerable</button>
+          <button style={{marginTop:2, color:'red'}} onClick={checkNameRegisterable}>Check Name Registerable</button>
           <button style={{marginLeft:2, marginTop:2}} onClick={getNodeInfo}>Get Node Info</button>
-          <button style={{marginLeft:2, marginTop:2}} onClick={() => getRentPrice(false)}>Get Price</button>
+          <button style={{marginLeft:2, marginTop:2, color:'red'}} onClick={() => getRentPrice(false)}>Get Price</button>
           <br/>
           <button onClick={getCommitmentInfo}>Get Commitment Config Info</button> 
-          <button style={{marginLeft:2, marginTop:2}} onClick={getCommitment}>Get Hash of Commitment</button>    
-          <button style={{marginLeft:2, marginTop:2}} onClick={commit}>Commit</button>
-          <button style={{marginLeft:2, marginTop:2}} onClick={getCommitmentTimestamp}>Get Valid Time of Register</button>
-          <button style={{marginLeft:2, marginTop:2}} onClick={register_whitelist}>Register with Whitelist</button>
+          <button style={{marginLeft:2, marginTop:2, color:'red'}} onClick={getCommitment}>Get Hash of Commitment</button>    
+          <button style={{marginLeft:2, marginTop:2, color:'red'}} onClick={commit}>Commit</button>
+          <button style={{marginLeft:2, marginTop:2, color:'red'}} onClick={getCommitmentTimestamp}>Get Valid Time of Register</button>
+          <button style={{marginLeft:2, marginTop:2, color:'red'}} onClick={register_whitelist}>Register with Whitelist</button>
           <button style={{marginLeft:2, marginTop:2}} onClick={register_public}>Register public</button>
           <br/>
           <button style={{marginTop:2}} onClick={clearLog}>Clear Log</button>
@@ -1140,10 +1344,10 @@ export function TNS() {
       {connectedWallet?.availablePost && !txResult && !txError && (
         <div>
           <button style={{marginTop:2}} onClick={getExpires}>Get Expire Time</button>
-          <button style={{marginLeft:2, marginTop:2}} onClick={getNFTInfo}>Get NFT Info</button>
+          <button style={{marginLeft:2, marginTop:2, color:'red'}} onClick={getNFTInfo}>Get NFT Info</button>
           <button style={{marginLeft:2, marginTop:2}} onClick={getOwner}>Get Owner</button>
           <button style={{marginLeft:2, marginTop:2}} onClick={getNFTNumber}>Get NFT Number</button> 
-          <button style={{marginLeft:2, marginTop:2}} onClick={() => getMyAllNFTs('')}>Get My NFTs</button>  
+          <button style={{marginLeft:2, marginTop:2, color:'red'}} onClick={() => getMyAllNFTs('')}>Get My NFTs</button>  
           <button style={{marginLeft:2, marginTop:2}} onClick={() => getAllNFTs('')}>Get All NFTs</button>  
           <pre>
             {didName}.lunc's Expire Time: {new Date(expireTime * 1000).toLocaleString()}
@@ -1168,13 +1372,20 @@ export function TNS() {
       <h3>Resolve Lunc DID</h3>
       {connectedWallet?.availablePost && !txResult && !txError && (
         <div>
-          <button style={{marginTop:2}} onClick={resolveDid}>Resolve {didName}.lunc</button>
+          <button style={{marginTop:2, color:'red'}} onClick={resolveDid}>Resolve {didName}.lunc</button>
           <pre>
             {didName}.lunc's Resolved Address: {resolvedAddress}
           </pre>
-          <br/>
           <input style={{marginTop:2, width: 400}} onChange={evt => setTerraAddress(evt.target.value)}/>
-          <button style={{marginLeft:2, marginTop:2}} onClick={setResolvedTerraAddr}>Set Resolved Address</button>
+          <button style={{marginLeft:2, marginTop:2, color:'red'}} onClick={setResolvedTerraAddr}>Set Resolved Address</button>
+          
+        </div>
+      )}
+      <h3>Transfer Lunc DID</h3>
+      {connectedWallet?.availablePost && !txResult && !txError && (
+        <div>
+          <input style={{marginTop:2, width: 400}} onChange={evt => setToAddress(evt.target.value)}/>
+          <button style={{marginLeft:2, marginTop:2, color:'red'}} onClick={transferNFT}>Transfer</button>
           
         </div>
       )}

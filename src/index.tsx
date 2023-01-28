@@ -12,11 +12,6 @@ function App() {
     >
       <ConnectSample />
       <TNS />
-      {/* <TxSample />
-      <SignSample />
-      <SignBytesSample />
-      <CW20TokensSample />
-      <NetworkSample /> */}
     </main>
   );
 }
