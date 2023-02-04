@@ -44,7 +44,7 @@ export function ConnectSample() {
         {status === WalletStatus.WALLET_CONNECTED && (
           <div>
             <button onClick={() => disconnect()}>Disconnect</button>
-            <text>{wallets != null ? wallets[0].addresses[chainId] : ''}</text>
+            <text>{wallets != null ? wallets[0]?.terraAddress : ''}</text>
           </div>
         )}
       </footer>
