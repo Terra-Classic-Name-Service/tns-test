@@ -12,13 +12,23 @@ const mk = new MnemonicKey({
 })
 
 // connect to localterra
-const terra = new LCDClient({
+const terraMainnet = new LCDClient({
   URL: 'https://lcd.terra.dev/',
   chainID: 'columbus-5',
   gasPrices: gasPricesCoins,
   gasAdjustment: "1.5", // Increase gas price slightly so transactions go through smoothly.
   gas: 10000000,
 });
+
+const terraTestnet = new LCDClient({
+  URL: 'https://lcd.terrac.dev/',
+  chainID: 'rebel-2',
+  gasPrices: gasPricesCoins,
+  gasAdjustment: "1.5", // Increase gas price slightly so transactions go through smoothly.
+  gas: 10000000,
+});
+
+const terra = terraTestnet;
 
 const wallet = terra.wallet(mk);
 console.log(wallet.key.accAddress);

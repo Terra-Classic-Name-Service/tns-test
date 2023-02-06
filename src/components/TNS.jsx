@@ -95,16 +95,19 @@ export function TNS() {
       let taxAmountCoins = new Coins({ uluna : 0 });
 
       const gasPrices =  await fetch('https://columbus-fcd.terra.dev/v1/txs/gas_prices');
+
       const gasPricesJson = await gasPrices.json();
       const gasPricesCoins = new Coins(gasPricesJson); 
 
       if (txAmount != null && txAmount > 0) {
-        const taxRateRaw = await fetch("https://rebel1.grouptwo.org/terra/treasury/v1beta1/tax_rate");
-        const taxRate = await taxRateRaw.json();
-        const taxCapRaw = await fetch("https://rebel1.grouptwo.org/terra/treasury/v1beta1/tax_caps/uluna");
-        const taxCap = await taxCapRaw.json();
-      
-        const taxAmount = Math.min(Math.ceil(txAmount * parseFloat(taxRate.tax_rate)), parseInt(taxCap.tax_cap));
+        // const taxRateRaw = await fetch("https://rebel1.grouptwo.org/terra/treasury/v1beta1/tax_rate");
+        // const taxRate = await taxRateRaw.json();
+        // const taxCapRaw = await fetch("https://rebel1.grouptwo.org/terra/treasury/v1beta1/tax_caps/uluna");
+        // const taxCap = await taxCapRaw.json();
+        
+        const taxRate = '0.002';
+        const taxCap = "60000000000000000";
+        const taxAmount = Math.min(Math.ceil(txAmount * parseFloat(taxRate)), parseInt(taxCap));
         taxAmountCoins = new Coins({ uluna : taxAmount });
       }
 
@@ -123,7 +126,7 @@ export function TNS() {
 
       return new Fee(txFee.gas_limit, amount + 'uluna');
     } catch (error) {
-      console.log(error);
+      console.log(error.response.data.message);
       console.log('Tx simulate execute fail, you would better NOT broadcast it to the chain');      
       return new Fee(2000000, '60000000uluna');
     }
@@ -740,7 +743,7 @@ export function TNS() {
         resolver: contractAddrs['resolver'],
         address: connectedWallet?.terraAddress,
         proof,
-        reverse_record: true
+        reverse_record: false
       }
     };
     //console.log(executeMsg);
@@ -799,6 +802,7 @@ export function TNS() {
         secret,
         resolver: contractAddrs['resolver'],
         address: connectedWallet?.terraAddress,
+        reverse_record: false
       }
     };
     //console.log(executeMsg);
