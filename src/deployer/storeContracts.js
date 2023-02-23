@@ -1,6 +1,5 @@
 import { Coins, LCDClient, MsgStoreCode, MnemonicKey, isTxError } from '@terra-money/terra.js';
 import * as fs from 'fs';
-import fetch from 'isomorphic-fetch';
 
 // const gasPrices =  await fetch('https://columbus-fcd.terra.dev/v1/txs/gas_prices');
 // const gasPricesJson = await gasPrices.json();
@@ -8,7 +7,7 @@ const gasPricesJson = {"uluna":"28.325","usdr":"0.104938","uusd":"0.15","ukrw":"
 const gasPricesCoins = new Coins(gasPricesJson); 
 
 const mk = new MnemonicKey({
-  mnemonic: ''
+  mnemonic: 'cave radio ski pelican hill road spawn shed teach measure arch cabbage crater model tray daring again aerobic female eagle bike skate dry vapor'
 })
 
 // connect to localterra
@@ -28,7 +27,7 @@ const terraTestnet = new LCDClient({
   gas: 10000000,
 });
 
-const terra = terraTestnet;
+const terra = terraMainnet;
 
 const wallet = terra.wallet(mk);
 console.log(wallet.key.accAddress);

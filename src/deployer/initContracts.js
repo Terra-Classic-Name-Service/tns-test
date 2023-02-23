@@ -64,14 +64,14 @@ const wallet = terra.wallet(mk);
 const contractNames = ['registry', 'resolver', 'registrar', 'controller'];
 
 const contractAddrs = {'registry': 'terra12jjtksj6lwpsf8fjffx4gcw45ypl9s0ud92eff', 
-                       'resolver': 'terra1pnxm63djh6k0mqvnw22uenv55tg7zjd2d4mfa3',
+                       'resolver': 'terra1ly97ft6g9lt5u24m8k2xh9u8n9epp03lgpf9wt',
                        'registrar': 'terra1er34wfk0hjpawtpfqp2kwfqaj9tm0aefl8uwce',
                        'controller': 'terra1sum7a9qy43lkxk29yv8tjnm2uevp6nwgcxdw62'}
 
 const contractCodeId = {
     'controller': [6813],
     'registrar': [6866],
-    'resolver': [6794],
+    'resolver': [6868],
     'registry': [6796]
 }
 
