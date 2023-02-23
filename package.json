@@ -1,6 +1,7 @@
 {
   "name": "cra-template",
   "version": "1.0.0",
+  "type": "module",
   "scripts": {
     "build": "react-app-rewired build",
     "start": "react-app-rewired start",

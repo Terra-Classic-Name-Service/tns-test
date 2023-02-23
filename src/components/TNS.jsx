@@ -13,14 +13,15 @@ import { Coins, Fee, MsgExecuteContract } from "@terra-money/terra.js"
 import React, { useCallback, useState } from 'react';
 import { MerkleTree } from 'merkletreejs';
 import pkg from 'js-sha3';
+import { namehash } from 'utils.js';
 import '../style.css';
 
 const { sha3_256: SHA256 } = pkg;
 
-const contractAddrs = {'registry': 'terra18nsn4nm32lf3hsky6l582xg5g92kqt829ckfsx', 
-                       'resolver': 'terra178zzd6lyp7ucykjjep3zmlv8kun8xn7t08fxcr',
-                       'registrar': 'terra1fswjjgx2ql0l3cg58uhjhaanqqv8cfqfrc9mqf',
-                       'controller': 'terra1zhcw620ma2vlpwvsr27hjf53ng8lgdm8egkg98'}
+const contractAddrs = {'registry': 'terra12jjtksj6lwpsf8fjffx4gcw45ypl9s0ud92eff', 
+                       'resolver': 'terra1ly97ft6g9lt5u24m8k2xh9u8n9epp03lgpf9wt',
+                       'registrar': 'terra1er34wfk0hjpawtpfqp2kwfqaj9tm0aefl8uwce',
+                       'controller': 'terra1sum7a9qy43lkxk29yv8tjnm2uevp6nwgcxdw62'}
 
 const secret = 'luncid';
 
@@ -58,6 +59,8 @@ export function TNS() {
   const [resolvedAddress, setResolvedAddress] = useState('');
   const [terraAddress, setTerraAddress] = useState('');
   const [toAddress, setToAddress] = useState('');
+  const [tokenIdOfNode, setTokenIdOfNode] = useState('');
+  const [isOwner, setIsOwner] = useState(false);
 
   const connectedWallet = useConnectedWallet();
   //const { status, network, wallets } = useWallet();
@@ -84,7 +87,7 @@ export function TNS() {
     "enable_registration": true,
     "enable_public_mint": false,
     "start_time": 1673168358,
-    "end_time": 1676822400,
+    "end_time": 1678822400,
     "phase": 1,
     "root": '31bfc69699d8a0d3363d7ebafded7f16bab9895003a0205512deb7e75c9894c3'
   }
@@ -746,7 +749,7 @@ export function TNS() {
         resolver: contractAddrs['resolver'],
         address: connectedWallet?.terraAddress,
         proof,
-        reverse_record: false
+        reverse_record: true
       }
     };
     //console.log(executeMsg);
@@ -1102,6 +1105,26 @@ export function TNS() {
   const getTokenId = async (name) => {
     let result = await lcd.wasm.contractQuery(contractAddrs['controller'], {get_token_id: {name}});    
     return result.token_id;
+    //return namehash(name).substring(2);
+  }
+
+  const getNameHashOf = async (name) => {
+    let tokenId = await getTokenId(name);  
+    var node = ''
+    for (var i = 0; i < 32; i++) {
+      node += '00'
+    }  
+    const nameHash = SHA256(new Buffer(node + tokenId, 'hex'));
+    setTokenIdOfNode(nameHash);
+    return nameHash;
+  }
+
+  const isOwnerRegistrar = async (name) => {
+    const nameHash = new Uint8Array(hex2ab(namehash(name)));  // GetIsNodeOwner
+    console.log([...nameHash]);
+    let result = await lcd.wasm.contractQuery(contractAddrs['registry'], {get_is_node_owner: {node: [...nameHash], address: contractAddrs['registrar']}});    
+    console.log(name, result);
+    setIsOwner(result);
   }
 
   const getNodeInfo = async () => {
@@ -1262,14 +1285,23 @@ export function TNS() {
       <h3 style={{color: 'red'}}>Registrar::AddController</h3>
       {connectedWallet?.availablePost && !txResult && !txError && (
         <div>
-          <button onClick={addController}>Add Controller</button>
+          <button onClick={addController}>Add Controller to Registrar</button>
         </div>
       )}
       <h3 style={{color: 'red'}}>Registry::SetSubNodeOwner(.lunc/.reverse)</h3>
       {connectedWallet?.availablePost && !txResult && !txError && (
         <div>
-          <button onClick={setSubnodeOwnerOfLunc}>Set SubNode Owner of .lunc</button>
+          <button onClick={() => setSubnodeOwnerOfLunc()}>Set SubNode Owner of .lunc</button>
           <button style={{marginLeft:2}} onClick={() => setSubnodeOwner('reverse')}>Set SubNode Owner of .reverse</button>
+          <br/><br/>
+          <button onClick={() => getNameHashOf('lunc')}>get token id of lunc</button>
+          <button style={{marginLeft:2}} onClick={() => getNameHashOf('reverse')}>get token id of reverse</button>
+          <br/>
+          <pre>token id:{tokenIdOfNode}</pre><br/><br/>
+          <button onClick={() => isOwnerRegistrar('lunc')}>get the owner of lunc is registrar</button>
+          <button style={{marginLeft:2}} onClick={() => isOwnerRegistrar('reverse')}>get the owner of reverse is registrar</button>
+          <br/>
+          <pre>is owner:{isOwner ? 'true' : 'false'}</pre>
         </div>
       )}
       <h3 style={{marginTop:5}}>Controller::Get Information</h3>
