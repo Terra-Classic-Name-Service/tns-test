@@ -1,19 +1,43 @@
 import { Coins, LCDClient, MsgInstantiateContract, MnemonicKey, isTxError } from '@terra-money/terra.js';
-import * as fs from 'fs';
-import fetch from 'isomorphic-fetch';
+// import { toUnicode } from 'idna-uts46-hx';
 import pkg from 'js-sha3';
-import { namehash } from '../utils.js';
+import pkgIdna from 'idna-uts46-hx';
 
 const { sha3_256: SHA256 } = pkg;
+const { toUnicode } = pkgIdna;
+
+const namehash = (inputName) => {
+  var node = ''
+  for (var i = 0; i < 32; i++) {
+    node += '00'
+  }
+
+  var name = normalize(inputName)
+
+  if (name) {
+    var labels = name.split('.')
+
+    for(var i = labels.length - 1; i >= 0; i--) {
+      var labelSha = SHA256(labels[i])
+      node = SHA256(new Buffer(node + labelSha, 'hex'))
+    }
+  }
+
+  return '0x' + node
+}
+
+function normalize(name) {
+  return name ? toUnicode(name, {useStd3ASCII: true, transitional: false}) : name
+}
 
 //const gasPrices =  await fetch('https://columbus-fcd.terra.dev/v1/txs/gas_prices');
 const gasPricesJson = {"uluna":"28.325","usdr":"0.52469","uusd":"0.75","ukrw":"850.0","umnt":"2142.855","ueur":"0.625","ucny":"4.9","ujpy":"81.85","ugbp":"0.55","uinr":"54.4","ucad":"0.95","uchf":"0.7","uaud":"0.95","usgd":"1.0","uthb":"23.1","usek":"6.25","unok":"6.25","udkk":"4.5","uidr":"10900.0","uphp":"38.0","uhkd":"5.85","umyr":"3.0","utwd":"20.0"};
 const gasPricesCoins = new Coins(gasPricesJson); 
 
-console.log(gasPricesCoins)
+
 // test1 key from localterra accounts
 const mk = new MnemonicKey({
-  mnemonic: ''
+  mnemonic: 'cave radio ski pelican hill road spawn shed teach measure arch cabbage crater model tray daring again aerobic female eagle bike skate dry vapor'
 })
 
 // connect to localterra
@@ -33,7 +57,7 @@ const terraTestnet = new LCDClient({
   gas: 10000000,
 });
 
-const terra = terraTestnet;
+const terra = terraMainnet;
 
 const wallet = terra.wallet(mk);
 
@@ -41,16 +65,32 @@ const contractNames = ['registry', 'resolver', 'registrar', 'controller'];
 
 const contractAddrs = {'registry': 'terra18nsn4nm32lf3hsky6l582xg5g92kqt829ckfsx', 
                        'resolver': 'terra178zzd6lyp7ucykjjep3zmlv8kun8xn7t08fxcr',
-                       'registrar': 'terra1w5a62a4jgqq8a08hsmphn6ad7caw5mqamh8hq0',
-                       'controller': 'terra1agx8ruthzfe6vpw3tu43kc32396dge67rc5tap'}
+                       'registrar': 'terra1fswjjgx2ql0l3cg58uhjhaanqqv8cfqfrc9mqf',
+                       'controller': 'terra1zhcw620ma2vlpwvsr27hjf53ng8lgdm8egkg98'}
 
 const contractCodeId = {
-    'controller': [6792],
-    'registrar': [6793],
+    'controller': [6813],
+    'registrar': [6866],
     'resolver': [6794],
     'registry': [6796]
 }
 
+/*
+{
+      "registrar_address": "terra178zzd6lyp7ucykjjep3zmlv8kun8xn7t08fxcr",
+      "max_commitment_age": 3600,
+      "min_commitment_age": 3,
+      "min_registration_duration": 7776000,
+      "tier1_price": 1000000,
+      "tier2_price": 500000,
+      "tier3_price": 250000,
+      "enable_registration": true,
+      "enable_public_mint": false,
+      "start_time": 1673168358,
+      "end_time": 1674032358,
+      "phase": 1        
+  }
+*/
 const initInfo = {
     'controller': {
         registrar_address: '',

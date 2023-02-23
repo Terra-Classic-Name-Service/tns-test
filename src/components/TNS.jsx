@@ -19,8 +19,8 @@ const { sha3_256: SHA256 } = pkg;
 
 const contractAddrs = {'registry': 'terra18nsn4nm32lf3hsky6l582xg5g92kqt829ckfsx', 
                        'resolver': 'terra178zzd6lyp7ucykjjep3zmlv8kun8xn7t08fxcr',
-                       'registrar': 'terra1w5a62a4jgqq8a08hsmphn6ad7caw5mqamh8hq0',
-                       'controller': 'terra1agx8ruthzfe6vpw3tu43kc32396dge67rc5tap'}
+                       'registrar': 'terra1fswjjgx2ql0l3cg58uhjhaanqqv8cfqfrc9mqf',
+                       'controller': 'terra1zhcw620ma2vlpwvsr27hjf53ng8lgdm8egkg98'}
 
 const secret = 'luncid';
 
@@ -34,8 +34,11 @@ export function TNS() {
   const [minRegisterDuration, setMinRegisterDuration] = useState(null);
   const [price, setPrice] = useState(null);
   const [registrarAddr, setRegistrarAddr] = useState(null);
+  const [registrarConfig, setRegistrarConfig] = useState(null);
+  const [registrarBaseNode, setRegistrarBaseNode] = useState(null);
+  const [registrarReverseNode, setRegistrarReverseNode] = useState(null);
   const [didName, setDidName] = useState(null);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(31536000);
   const [nodeInfo, setNodeInfo] = useState(null);
   const [commitment, setCommitment] = useState(null);
   const [validRegisterTime, setValidRegisterTime] = useState(null);
@@ -73,7 +76,7 @@ export function TNS() {
     "owner": connectedWallet?.terraAddress,
     "registrar_address": contractAddrs['registrar'],
     "max_commitment_age": 3600,
-    "min_commitment_age": 3,
+    "min_commitment_age": 30,
     "min_registration_duration": 90 * 3600 * 24,
     "tier1_price": 1000000,
     "tier2_price": 500000,
@@ -802,7 +805,7 @@ export function TNS() {
         secret,
         resolver: contractAddrs['resolver'],
         address: connectedWallet?.terraAddress,
-        reverse_record: false
+        reverse_record: true
       }
     };
     //console.log(executeMsg);
@@ -907,6 +910,21 @@ export function TNS() {
     setRegistrarAddr(JSON.stringify(result));
   }
 
+  const getRegistarConfig = async () => {
+    let result = await lcd.wasm.contractQuery(contractAddrs['registrar'], {get_config: {}});
+    setRegistrarConfig(JSON.stringify(result));
+  }
+
+  const getRegistarBaseNode = async () => {
+    let result = await lcd.wasm.contractQuery(contractAddrs['registrar'], {get_base_node: {}});
+    setRegistrarBaseNode(JSON.stringify(result));
+  }
+
+  const getRegistarReverseNode = async () => {
+    let result = await lcd.wasm.contractQuery(contractAddrs['registrar'], {get_reverse_node: {}});
+    setRegistrarReverseNode(JSON.stringify(result));
+  }
+
   const checkNameRegisterable = async () => {
     if (didName == '' || didName == null) {
       alert("Please input name");
@@ -920,10 +938,15 @@ export function TNS() {
     }
     console.log('check name commitment')
     let hasCommitted = false;
-    await getCommitment();
-    const maxCommitmentTime = await getCommitmentTimestamp();
-    if (maxCommitmentTime * 1000 > new Date().getTime()) {
-      hasCommitted = true;
+    try {
+      await getCommitment();
+      console.log(commitment);
+      const maxCommitmentTime = await getCommitmentTimestamp();
+      if (maxCommitmentTime * 1000 > new Date().getTime()) {
+        hasCommitted = true;
+      }
+    } catch (error) {
+      console.log('no commitment')
     }
     console.log('check name available')
     const available = await isAvailableName();
@@ -1038,6 +1061,44 @@ export function TNS() {
     }
   }
 
+  /*
+  pub fn get_token_id_from_name(name: &String) -> StdResult<TokenIdResponse> {
+      let label: Vec<u8> = get_label_from_name(&name);
+      let token_id = get_token_id_from_label(&label);
+      Ok(TokenIdResponse { token_id })
+  }
+  pub fn get_label_from_name(name: &String) -> Vec<u8> {
+      keccak256(name.as_bytes())
+  }
+  pub fn get_token_id_from_label(label: &Vec<u8>) -> String {
+      hex::encode(label)
+  }
+  */
+ /*
+    init: js namehash("lunc")  =>  decode_node_string_to_bytes(namehash("lunc"))
+    pub fn decode_node_string_to_bytes(node: String) -> Result<Vec<u8>, hex::FromHexError> {
+        hex::decode(node)
+    }
+
+    pub struct Config {
+        pub grace_period: u64,
+        pub owner: CanonicalAddr,
+        pub base_node: Vec<u8>,
+        pub base_name: String,
+        pub reverse_node: Vec<u8>,
+        pub reverse_name: String,
+        pub registry_address: CanonicalAddr,
+    }
+    pub fn get_base_node(&self, deps: Deps) -> StdResult<GetBaseNodeResponse> {
+        let base_node = CONFIG.load(deps.storage)?.base_node;
+        Ok(GetBaseNodeResponse {
+            base_node: encode_node_bytes_to_string(base_node),
+        })
+    }
+    pub fn encode_node_bytes_to_string(node: Vec<u8>) -> String {
+        hex::encode(node)
+    }
+ */
   const getTokenId = async (name) => {
     let result = await lcd.wasm.contractQuery(contractAddrs['controller'], {get_token_id: {name}});    
     return result.token_id;
@@ -1074,17 +1135,18 @@ export function TNS() {
       alert("Please input name");
       return;
     }
-    let result = await lcd.wasm.contractQuery(contractAddrs['controller'],
-          { 
-            get_commitment: {
-              name: didName, 
-              owner: connectedWallet?.terraAddress,
-              resolver: contractAddrs['resolver'],
-              address: connectedWallet?.terraAddress,
-              secret
-            }
-          }
-        );    
+    let result = await lcd.wasm.contractQuery(
+      contractAddrs['controller'], { 
+        get_commitment: {
+          name: didName, 
+          owner: connectedWallet?.terraAddress,
+          resolver: contractAddrs['resolver'],
+          address: connectedWallet?.terraAddress,
+          secret
+        }
+      }
+    );
+    console.log('getCommitment', result);    
     setCommitment(result.commitment);  
     return result.commitment;
   }
@@ -1098,18 +1160,21 @@ export function TNS() {
     }
     const commitInfoObj = JSON.parse(commitConfigInfo);
     try {
-      let result = await lcd.wasm.contractQuery(contractAddrs['controller'],
-            { 
-              commitment_timestamp: {
-                commitment
-              }
-            }
-          ); 
+      let result = await lcd.wasm.contractQuery(
+        contractAddrs['controller'],
+        { 
+          commitment_timestamp: {
+            commitment
+          }
+        }
+      ); 
+      console.log('getCommitmentTimestamp', result);
       setValidRegisterTime('valid time of register: ' + 
             new Date((result.timestamp + commitInfoObj.minAge) * 1000).toLocaleString() + ' ~ ' +
             new Date((result.timestamp + commitInfoObj.maxAge) * 1000).toLocaleString());
       return result.timestamp + commitInfoObj.maxAge;
     } catch (error) {
+      console.log(error);
       setValidRegisterTime('NO commit');
       return 0;
     }
@@ -1225,6 +1290,18 @@ export function TNS() {
           <button onClick={getRegistarAddr}>Get Registrar Address</button>
           <br/>
           <pre>{registrarAddr}</pre>
+          <br/>
+          <button onClick={getRegistarConfig}>Get Registrar Config</button>
+          <br/>
+          <pre>{registrarConfig}</pre>
+          <br/>
+          <button onClick={getRegistarBaseNode}>Get Registrar Base Name</button>
+          <br/>
+          <pre>{registrarBaseNode}</pre>
+          <br/>
+          <button onClick={getRegistarReverseNode}>Get Registrar Reverse Name</button>
+          <br/>
+          <pre>{registrarReverseNode}</pre>
           <br/>
         </div>
       )}

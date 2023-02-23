@@ -57,7 +57,7 @@ async function storeCode2TerraClassic(filePath) {
   console.log(filePath, '=>', code_id);
 }
 
-const path = "/Users/mryu/blockchain/terra-classic/dapp/tns/artifacts/";
+const path = "/Users/mryu/project/terra-classic/tns/artifacts/";
 //const contractNames = ["controller.wasm", "registrar.wasm", "registry.wasm", "resolver.wasm"];
 
 for (let i = 2; i < process.argv.length; i++) {
