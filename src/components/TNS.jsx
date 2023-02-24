@@ -59,6 +59,9 @@ export function TNS() {
   const [resolvedAddress, setResolvedAddress] = useState('');
   const [terraAddress, setTerraAddress] = useState('');
   const [toAddress, setToAddress] = useState('');
+  const [reverseAddress, setReverseAddress] = useState('');
+  const [toReverseDid, setToReverseDid] = useState('');
+  const [reverseDid, setReverseDid] = useState('');
   const [tokenIdOfNode, setTokenIdOfNode] = useState('');
   const [isOwner, setIsOwner] = useState(false);
 
@@ -1047,6 +1050,67 @@ export function TNS() {
     return result.tokens;
   }
 
+  const getReverseDid = async () => {
+    const node = new Uint8Array(hex2ab(namehash(reverseAddress + '.reverse')));
+    console.log([...node])
+    let did = await lcd.wasm.contractQuery(contractAddrs['resolver'], {get_name: { node: [...node] }});  
+    setReverseDid(did.name);
+  }
+
+  const setReverseDid4MyAddr = useCallback(async () => {
+    if (!connectedWallet) {
+      return;
+    }
+    const node = new Uint8Array(hex2ab(namehash(connectedWallet?.terraAddress + '.reverse')));
+    const executeMsg = {
+      set_name: {
+        node: [...node],
+        name: toReverseDid
+      }
+    };
+    //console.log(executeMsg);
+
+    setTxResult(null);
+    setTxError(null);
+    
+    const conctractMsg = new MsgExecuteContract(
+      connectedWallet?.terraAddress, 
+      contractAddrs['resolver'],
+      {
+        ...executeMsg
+      });
+
+    const txFee = await getTxFee(conctractMsg, parseInt(rentPrice.toString()));
+    connectedWallet.post({
+        fee: txFee,
+        msgs: [
+          conctractMsg
+        ],
+      })
+      .then((nextTxResult) => {
+        console.log(nextTxResult);
+        setTxResult(nextTxResult);
+      })
+      .catch((error) => {
+        if (error instanceof UserDenied) {
+          setTxError('User Denied');
+        } else if (error instanceof CreateTxFailed) {
+          setTxError('Create Tx Failed: ' + error.message);
+        } else if (error instanceof TxFailed) {
+          setTxError('Tx Failed: ' + error.message);
+        } else if (error instanceof Timeout) {
+          setTxError('Timeout');
+        } else if (error instanceof TxUnspecifiedError) {
+          setTxError('Unspecified Error: ' + error.message);
+        } else {
+          setTxError(
+            'Unknown Error: ' +
+              (error instanceof Error ? error.message : String(error)),
+          );
+        }
+      });
+  }, [connectedWallet, toReverseDid]);
+
   const resolveDid = async () => {
     if (didName == '' || didName == null) {
       alert("Please input name");
@@ -1426,9 +1490,23 @@ export function TNS() {
       {connectedWallet?.availablePost && !txResult && !txError && (
         <div>
           <input style={{marginTop:2, width: 400}} onChange={evt => setToAddress(evt.target.value)}/>
-          <button style={{marginLeft:2, marginTop:2, color:'red'}} onClick={transferNFT}>Transfer</button>
-          
+          <button style={{marginLeft:2, marginTop:2, color:'red'}} onClick={() => transferNFT()}>Transfer</button>          
         </div>
+      )}
+      <h3>Reverse of Lunc DID</h3>
+      {connectedWallet?.availablePost && !txResult && !txError && (
+        <div>
+          <input style={{marginTop:2, width: 400}} onChange={evt => setReverseAddress(evt.target.value)}/>
+          <button style={{marginLeft:2, marginTop:2, color:'red'}} onClick={() => getReverseDid()}>Get Reverse DID</button>  
+          <pre>
+           Reverse DID: {reverseDid}
+          </pre>    
+          <div>
+          <input style={{marginTop:2, width: 400}} onChange={evt => setToReverseDid(evt.target.value)}/>
+          <button style={{marginLeft:2, marginTop:2, color:'red'}} onClick={() => setReverseDid4MyAddr()}>Set Reverse DID</button>        
+        </div>    
+        </div>
+        
       )}
 
 
