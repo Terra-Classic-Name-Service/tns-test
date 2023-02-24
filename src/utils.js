@@ -27,3 +27,15 @@ export function namehash(inputName) {
 function normalize(name) {
   return name ? toUnicode(name, {useStd3ASCII: true, transitional: false}) : name
 }
+
+/**
+ * 十六进制转 bytearray
+ */
+export function hex2ab(hex) {
+  var typedArray = new Uint8Array((hex.match(/[\da-f]{2}/gi)).map(function (h) {
+    return parseInt(h, 16)
+  }))
+
+  var buffer = typedArray.buffer
+  return buffer
+}

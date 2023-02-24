@@ -13,7 +13,7 @@ import { Coins, Fee, MsgExecuteContract } from "@terra-money/terra.js"
 import React, { useCallback, useState } from 'react';
 import { MerkleTree } from 'merkletreejs';
 import pkg from 'js-sha3';
-import { namehash } from 'utils.js';
+import { namehash, hex2ab } from 'utils.js';
 import '../style.css';
 
 const { sha3_256: SHA256 } = pkg;
@@ -1002,6 +1002,7 @@ export function TNS() {
       return;
     }
     const tokenId = await getTokenId(didName);
+    console.log(tokenId)
     let result = await lcd.wasm.contractQuery(contractAddrs['registrar'], {owner_of: {token_id: tokenId, include_expired: true}});  
     setOwnerInfo(result);
     return result;
@@ -1274,18 +1275,6 @@ export function TNS() {
     setCommitment('');
     setRentPrice(0);
     setValidRegisterTime('');
-  }
-
-  /**
-   * 十六进制转 bytearray
-   */
-  const hex2ab = (hex) => {
-    var typedArray = new Uint8Array((hex.match(/[\da-f]{2}/gi)).map(function (h) {
-      return parseInt(h, 16)
-    }))
-
-    var buffer = typedArray.buffer
-    return buffer
   }
 
   // ArrayBuffer转16进度字符串示例
