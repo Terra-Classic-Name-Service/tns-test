@@ -18,10 +18,10 @@ import '../style.css';
 
 const { sha3_256: SHA256 } = pkg;
 
-const contractAddrs = {'registry': 'terra12jjtksj6lwpsf8fjffx4gcw45ypl9s0ud92eff', 
-                       'resolver': 'terra1ly97ft6g9lt5u24m8k2xh9u8n9epp03lgpf9wt',
-                       'registrar': 'terra1er34wfk0hjpawtpfqp2kwfqaj9tm0aefl8uwce',
-                       'controller': 'terra1sum7a9qy43lkxk29yv8tjnm2uevp6nwgcxdw62'}
+const contractAddrs = {'registry': 'terra1f8zucu5l90kvxlsakhv2x5n8rge330mdhmpxrd', 
+                       'resolver': 'terra1mmfuq42y9yv9v3uc9s9xuq7tl9wwkf5ruuars0',
+                       'registrar': 'terra1zamqfsexrm532neavkqscrckjeajcvyf6dnhem',
+                       'controller': 'terra1t7pqe4xvjkls8u64n47jdd58c9tgfem5jsye87'}
 
 const secret = 'luncid';
 
@@ -92,7 +92,7 @@ export function TNS() {
     "root": '31bfc69699d8a0d3363d7ebafded7f16bab9895003a0205512deb7e75c9894c3'
   }
 
-  const whitelistStr = "terra1q43hd97ru800y6mmkwemrhlhnwsn2re2y3fx92;terra1yydvkwm70lswqwsp9atvqk0789prk77nk29pjw;terra1wrrds522sh74d26tp0r4fgj0v5e3npvlv7luch;terra1772z9xeswzar3jq38mgsqvdnw97vkp26vhgf54;terra1tc4jxccs8x5hdzfddl2dzmae6v6m8ksjscqy6h;terra1uvea9l99d27wm8ljvxsdyjz5c8f5eyv4x9shzh";
+  const whitelistStr = "terra1hh9406qg4a3c62t2txthzcjdf5r4w960td09gc;terra1q43hd97ru800y6mmkwemrhlhnwsn2re2y3fx92;terra1yydvkwm70lswqwsp9atvqk0789prk77nk29pjw;terra1wrrds522sh74d26tp0r4fgj0v5e3npvlv7luch;terra1772z9xeswzar3jq38mgsqvdnw97vkp26vhgf54;terra1tc4jxccs8x5hdzfddl2dzmae6v6m8ksjscqy6h;terra1uvea9l99d27wm8ljvxsdyjz5c8f5eyv4x9shzh";
   
   let proofString = '';
 
@@ -1298,8 +1298,8 @@ export function TNS() {
           <button style={{marginLeft:2}} onClick={() => getNameHashOf('reverse')}>get token id of reverse</button>
           <br/>
           <pre>token id:{tokenIdOfNode}</pre><br/><br/>
-          <button onClick={() => isOwnerRegistrar('lunc')}>get the owner of lunc is registrar</button>
-          <button style={{marginLeft:2}} onClick={() => isOwnerRegistrar('reverse')}>get the owner of reverse is registrar</button>
+          <button onClick={() => isOwnerRegistrar('lunc')}>check the owner of lunc is registrar</button>
+          <button style={{marginLeft:2}} onClick={() => isOwnerRegistrar('reverse')}>check the owner of reverse is registrar</button>
           <br/>
           <pre>is owner:{isOwner ? 'true' : 'false'}</pre>
         </div>

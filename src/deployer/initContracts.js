@@ -1,6 +1,7 @@
 import { Coins, LCDClient, MsgInstantiateContract, MnemonicKey, isTxError } from '@terra-money/terra.js';
 import { namehash } from '../utils.js';
 
+
 //const gasPrices =  await fetch('https://columbus-fcd.terra.dev/v1/txs/gas_prices');
 const gasPricesJson = {"uluna":"28.325","usdr":"0.52469","uusd":"0.75","ukrw":"850.0","umnt":"2142.855","ueur":"0.625","ucny":"4.9","ujpy":"81.85","ugbp":"0.55","uinr":"54.4","ucad":"0.95","uchf":"0.7","uaud":"0.95","usgd":"1.0","uthb":"23.1","usek":"6.25","unok":"6.25","udkk":"4.5","uidr":"10900.0","uphp":"38.0","uhkd":"5.85","umyr":"3.0","utwd":"20.0"};
 const gasPricesCoins = new Coins(gasPricesJson); 
@@ -34,15 +35,15 @@ const wallet = terra.wallet(mk);
 
 const contractNames = ['registry', 'resolver', 'registrar', 'controller'];
 
-const contractAddrs = {'registry': 'terra12jjtksj6lwpsf8fjffx4gcw45ypl9s0ud92eff', 
-                       'resolver': 'terra1ly97ft6g9lt5u24m8k2xh9u8n9epp03lgpf9wt',
-                       'registrar': 'terra1er34wfk0hjpawtpfqp2kwfqaj9tm0aefl8uwce',
-                       'controller': 'terra1sum7a9qy43lkxk29yv8tjnm2uevp6nwgcxdw62'}
+const contractAddrs = {'registry': 'terra1f8zucu5l90kvxlsakhv2x5n8rge330mdhmpxrd', 
+                       'resolver': 'terra1mmfuq42y9yv9v3uc9s9xuq7tl9wwkf5ruuars0',
+                       'registrar': 'terra1zamqfsexrm532neavkqscrckjeajcvyf6dnhem',
+                       'controller': 'terra1t7pqe4xvjkls8u64n47jdd58c9tgfem5jsye87'}
 
 const contractCodeId = {
-    'controller': [6813],
-    'registrar': [6866],
-    'resolver': [6868],
+    'controller': [6871],
+    'registrar': [6872],
+    'resolver': [6873],
     'registry': [6796]
 }
 
